@@ -1,0 +1,5 @@
+{
+  "name": "仙侠短剧分镜生成器",
+  "description": "适配Seedance 2.0的3D国漫仙侠短剧视频分镜提示词生成工具",
+  "requestFramePermissions": []
+}
