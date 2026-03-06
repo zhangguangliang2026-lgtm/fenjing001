@@ -11,7 +11,8 @@ import {
   Plus,
   BookOpen,
   X,
-  Cpu
+  Cpu,
+  Edit2
 } from 'lucide-react';
 import { 
   TextModelType,
@@ -54,6 +55,8 @@ export default function App() {
   const [imageSize, setImageSize] = useState('1K');
   const [showKeys, setShowKeys] = useState(false);
   const [showModels, setShowModels] = useState(false);
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
   const keyBoxRef = useRef<HTMLDivElement>(null);
   const modelBoxRef = useRef<HTMLDivElement>(null);
 
@@ -159,6 +162,27 @@ export default function App() {
     localStorage.removeItem(`seedance_assetNames_${id}`);
     localStorage.removeItem(`seedance_assetPrompts_${id}`);
     localStorage.removeItem(`seedance_assetImages_${id}`);
+  };
+
+  const startEditing = (chapter: Chapter, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingChapterId(chapter.id);
+    setEditingName(chapter.name);
+  };
+
+  const saveEditing = () => {
+    if (editingChapterId && editingName.trim()) {
+      setChapters(chapters.map(c => c.id === editingChapterId ? { ...c, name: editingName.trim() } : c));
+    }
+    setEditingChapterId(null);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveEditing();
+    } else if (e.key === 'Escape') {
+      setEditingChapterId(null);
+    }
   };
 
   return (
@@ -356,6 +380,7 @@ export default function App() {
               <div
                 key={chapter.id}
                 onClick={() => setActiveChapterId(chapter.id)}
+                onDoubleClick={(e) => startEditing(chapter, e)}
                 className={cn(
                   "w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center justify-between group cursor-pointer border",
                   activeChapterId === chapter.id 
@@ -363,18 +388,45 @@ export default function App() {
                     : "bg-transparent border-transparent text-zinc-400 hover:bg-white/5 hover:text-zinc-300"
                 )}
               >
-                <span className="truncate pr-2">{chapter.name}</span>
-                {chapters.length > 1 && (
-                  <button
-                    onClick={(e) => removeChapter(chapter.id, e)}
-                    className={cn(
-                      "p-1 rounded-md hover:bg-white/10 transition-colors",
-                      activeChapterId === chapter.id ? "text-emerald-400/70 hover:text-emerald-400" : "opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-300"
-                    )}
-                    title="删除章节"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                {editingChapterId === chapter.id ? (
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onBlur={saveEditing}
+                    onKeyDown={handleKeyDown}
+                    autoFocus
+                    className="w-full bg-black/50 border border-emerald-500/50 rounded px-2 py-1 text-emerald-400 focus:outline-none text-sm"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <>
+                    <span className="truncate pr-2 flex-1" title="双击重命名">{chapter.name}</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => startEditing(chapter, e)}
+                        className={cn(
+                          "p-1 rounded-md hover:bg-white/10 transition-colors",
+                          activeChapterId === chapter.id ? "text-emerald-400/70 hover:text-emerald-400" : "opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-300"
+                        )}
+                        title="重命名章节"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      {chapters.length > 1 && (
+                        <button
+                          onClick={(e) => removeChapter(chapter.id, e)}
+                          className={cn(
+                            "p-1 rounded-md hover:bg-white/10 transition-colors",
+                            activeChapterId === chapter.id ? "text-emerald-400/70 hover:text-emerald-400" : "opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-zinc-300"
+                          )}
+                          title="删除章节"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             ))}

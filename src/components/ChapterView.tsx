@@ -414,7 +414,7 @@ export default function ChapterView({
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm tracking-wide">解析中...</span>
+                <span className="text-sm tracking-wide">正在生成中...</span>
               </>
             ) : (
               <>
