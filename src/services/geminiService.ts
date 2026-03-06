@@ -142,6 +142,8 @@ export async function extractAssetNames(script: string, shots: string, modelType
 
 async function extractAssetNamesDeepSeek(script: string, shots: string, apiKey?: string, customInstruction?: string) {
   if (!apiKey) throw new Error("DeepSeek API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("DeepSeek API Key contains invalid characters");
 
   const prompt = `原文：\n${script}\n\n分镜：\n${shots}\n\n请提取所有资产名称。请严格按照JSON格式输出。`;
 
@@ -149,7 +151,7 @@ async function extractAssetNamesDeepSeek(script: string, shots: string, apiKey?:
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
+      "Authorization": `Bearer ${cleanApiKey}`
     },
     body: JSON.stringify({
       model: "deepseek-chat",
@@ -177,14 +179,16 @@ async function extractAssetNamesDeepSeek(script: string, shots: string, apiKey?:
 
 async function extractAssetNamesClaude(script: string, shots: string, apiKey?: string, customInstruction?: string) {
   if (!apiKey) throw new Error("Claude API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("Claude API Key contains invalid characters");
 
-  const prompt = `原文：\n${script}\n\n分镜：\n${shots}\n\n请提取所有资产名称。请严格按照JSON格式输出。`;
+  const prompt = `原文：\n${script}\n\n分镜：\n${shots}\n\n请提取所有资产名称。请严格按照JSON格式输出，只输出JSON，不要输出其他内容。`;
 
-  const response = await fetch("https://api.platonai.cn/v1/chat/completions", {
+  const response = await fetch("https://api.bltcy.top/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
+      "Authorization": `Bearer ${cleanApiKey}`
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
@@ -192,7 +196,8 @@ async function extractAssetNamesClaude(script: string, shots: string, apiKey?: s
         { role: "system", content: customInstruction || ASSET_NAME_EXTRACTOR_INSTRUCTION },
         { role: "user", content: prompt }
       ],
-      response_format: { type: "json_object" }
+      temperature: 0.3,
+      max_tokens: 8192
     })
   });
 
@@ -204,7 +209,10 @@ async function extractAssetNamesClaude(script: string, shots: string, apiKey?: s
   const data = await response.json();
   try {
     const content = data.choices[0]?.message?.content;
-    return JSON.parse(content || "{}");
+    // Find JSON block if wrapped in markdown
+    const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/```\n([\s\S]*?)\n```/);
+    const jsonStr = jsonMatch ? jsonMatch[1] : content;
+    return JSON.parse(jsonStr || "{}");
   } catch (e) {
     return { characters: [], props: [], scenes: [] };
   }
@@ -239,6 +247,8 @@ export async function generateSingleAssetPrompt(name: string, type: 'character' 
 
 async function generateSingleAssetPromptDeepSeek(name: string, type: 'character' | 'prop' | 'scene', script: string, apiKey?: string, customInstruction?: string) {
   if (!apiKey) throw new Error("DeepSeek API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("DeepSeek API Key contains invalid characters");
 
   const prompt = `资产名称：${name}\n资产类型：${type}\n背景剧情：\n${script}\n\n请为该资产生成优化后的生图提示词。`;
 
@@ -246,7 +256,7 @@ async function generateSingleAssetPromptDeepSeek(name: string, type: 'character'
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
+      "Authorization": `Bearer ${cleanApiKey}`
     },
     body: JSON.stringify({
       model: "deepseek-chat",
@@ -268,21 +278,25 @@ async function generateSingleAssetPromptDeepSeek(name: string, type: 'character'
 
 async function generateSingleAssetPromptClaude(name: string, type: 'character' | 'prop' | 'scene', script: string, apiKey?: string, customInstruction?: string) {
   if (!apiKey) throw new Error("Claude API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("Claude API Key contains invalid characters");
 
   const prompt = `资产名称：${name}\n资产类型：${type}\n背景剧情：\n${script}\n\n请为该资产生成优化后的生图提示词。`;
 
-  const response = await fetch("https://api.platonai.cn/v1/chat/completions", {
+  const response = await fetch("https://api.bltcy.top/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
+      "Authorization": `Bearer ${cleanApiKey}`
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
       messages: [
         { role: "system", content: customInstruction || SINGLE_ASSET_OPTIMIZER_INSTRUCTION },
         { role: "user", content: prompt }
-      ]
+      ],
+      temperature: 0.3,
+      max_tokens: 8192
     })
   });
 
@@ -314,7 +328,7 @@ export async function generatePrompts(script: string, onChunk: (text: string) =>
     contents: [{ role: "user", parts: [{ text: script }] }],
     config: {
       systemInstruction: customSystemInstruction || SYSTEM_INSTRUCTION,
-      temperature: 0.7,
+      temperature: 0.3,
       maxOutputTokens: 8192, // Increase limit to allow full script coverage
     },
   });
@@ -332,60 +346,104 @@ export async function generatePrompts(script: string, onChunk: (text: string) =>
 
 async function generatePromptsDeepSeek(script: string, onChunk: (text: string) => void, apiKey?: string, customSystemInstruction?: string) {
   if (!apiKey) throw new Error("DeepSeek API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("DeepSeek API Key contains invalid characters");
 
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: "deepseek-chat",
-      messages: [
-        { role: "system", content: customSystemInstruction || SYSTEM_INSTRUCTION },
-        { role: "user", content: script }
-      ],
-      stream: true,
-      max_tokens: 8192 // DeepSeek-V3 max output tokens is 8192
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `DeepSeek API error: ${response.status}`);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Failed to get reader");
-
-  const decoder = new TextDecoder();
   let fullText = "";
-  let buffer = "";
+  let isFinished = false;
+  let loopCount = 0;
+  const MAX_LOOPS = 5; // Prevent infinite loops
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  let messages = [
+    { role: "system", content: customSystemInstruction || SYSTEM_INSTRUCTION },
+    { role: "user", content: script }
+  ];
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
+  while (!isFinished && loopCount < MAX_LOOPS && fullText.length < 30000) {
+    loopCount++;
+    
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${cleanApiKey}`
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages: messages,
+        stream: true,
+        temperature: 0.3,
+        max_tokens: 8192 // DeepSeek-V3 max output tokens is 8192
+      })
+    });
 
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
-      
-      const dataStr = trimmedLine.slice(6);
-      if (dataStr === "[DONE]") break;
-      
-      try {
-        const data = JSON.parse(dataStr);
-        const content = data.choices[0]?.delta?.content;
-        if (content) {
-          fullText += content;
-          onChunk(fullText);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `DeepSeek API error: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Failed to get reader");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finishReason = null;
+    let currentChunkText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
+        
+        const dataStr = trimmedLine.slice(6);
+        if (dataStr === "[DONE]") break;
+        
+        try {
+          const data = JSON.parse(dataStr);
+          const content = data.choices[0]?.delta?.content;
+          if (content) {
+            currentChunkText += content;
+            fullText += content;
+            onChunk(fullText);
+          }
+          if (data.choices[0]?.finish_reason) {
+            finishReason = data.choices[0].finish_reason;
+          }
+        } catch (e) {
+          // Ignore parse errors for partial chunks
         }
-      } catch (e) {
-        // Ignore parse errors for partial chunks
+      }
+    }
+
+    if (finishReason === "stop" || finishReason === "end_turn") {
+      const trimmed = currentChunkText.trim();
+      // Check if it ends with a valid sentence-ending punctuation or markdown.
+      // If it ends with a letter, number, Chinese character, or comma, it was likely cut off by a proxy timeout.
+      const endsWithPunctuation = /[。！？\.\!\?\]\}”"'\`>\*~]$/.test(trimmed);
+      
+      if (!endsWithPunctuation && trimmed.length > 0) {
+        messages.push({ role: "assistant", content: currentChunkText });
+        messages.push({ role: "user", content: "继续输出，不要重复，不要总结，直接接着写" });
+      } else {
+        isFinished = true;
+      }
+    } else if (finishReason === "length" || finishReason === "max_tokens") {
+      messages.push({ role: "assistant", content: currentChunkText });
+      messages.push({ role: "user", content: "继续输出，不要重复，不要总结，直接接着写" });
+    } else {
+      // If no explicit finish reason or unknown (e.g., connection dropped), assume it was cut off
+      if (!currentChunkText) {
+        isFinished = true;
+      } else {
+        messages.push({ role: "assistant", content: currentChunkText });
+        messages.push({ role: "user", content: "继续输出，不要重复，不要总结，直接接着写" });
       }
     }
   }
@@ -395,60 +453,104 @@ async function generatePromptsDeepSeek(script: string, onChunk: (text: string) =
 
 async function generatePromptsClaude(script: string, onChunk: (text: string) => void, apiKey?: string, customSystemInstruction?: string) {
   if (!apiKey) throw new Error("Claude API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("Claude API Key contains invalid characters");
 
-  const response = await fetch("https://api.platonai.cn/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      messages: [
-        { role: "system", content: customSystemInstruction || SYSTEM_INSTRUCTION },
-        { role: "user", content: script }
-      ],
-      stream: true,
-      max_tokens: 16384
-    })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `Claude API error: ${response.status}`);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Failed to get reader");
-
-  const decoder = new TextDecoder();
   let fullText = "";
-  let buffer = "";
+  let isFinished = false;
+  let loopCount = 0;
+  const MAX_LOOPS = 5; // Prevent infinite loops
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  let messages = [
+    { role: "system", content: customSystemInstruction || SYSTEM_INSTRUCTION },
+    { role: "user", content: script }
+  ];
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
+  while (!isFinished && loopCount < MAX_LOOPS && fullText.length < 30000) {
+    loopCount++;
+    
+    const response = await fetch("https://api.bltcy.top/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${cleanApiKey}`
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        messages: messages,
+        stream: true,
+        temperature: 0.3,
+        max_tokens: 8192
+      })
+    });
 
-    for (const line of lines) {
-      const trimmedLine = line.trim();
-      if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
-      
-      const dataStr = trimmedLine.slice(6);
-      if (dataStr === "[DONE]") break;
-      
-      try {
-        const data = JSON.parse(dataStr);
-        const content = data.choices[0]?.delta?.content;
-        if (content) {
-          fullText += content;
-          onChunk(fullText);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `Claude API error: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Failed to get reader");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finishReason = null;
+    let currentChunkText = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
+        
+        const dataStr = trimmedLine.slice(6);
+        if (dataStr === "[DONE]") break;
+        
+        try {
+          const data = JSON.parse(dataStr);
+          const content = data.choices[0]?.delta?.content;
+          if (content) {
+            currentChunkText += content;
+            fullText += content;
+            onChunk(fullText);
+          }
+          if (data.choices[0]?.finish_reason) {
+            finishReason = data.choices[0].finish_reason;
+          }
+        } catch (e) {
+          // Ignore parse errors for partial chunks
         }
-      } catch (e) {
-        // Ignore parse errors for partial chunks
+      }
+    }
+
+    if (finishReason === "stop" || finishReason === "end_turn") {
+      const trimmed = currentChunkText.trim();
+      // Check if it ends with a valid sentence-ending punctuation or markdown.
+      // If it ends with a letter, number, Chinese character, or comma, it was likely cut off by a proxy timeout.
+      const endsWithPunctuation = /[。！？\.\!\?\]\}”"'\`>\*~]$/.test(trimmed);
+      
+      if (!endsWithPunctuation && trimmed.length > 0) {
+        messages.push({ role: "assistant", content: currentChunkText });
+        messages.push({ role: "user", content: "继续输出，不要重复，不要总结，直接接着写" });
+      } else {
+        isFinished = true;
+      }
+    } else if (finishReason === "length" || finishReason === "max_tokens") {
+      messages.push({ role: "assistant", content: currentChunkText });
+      messages.push({ role: "user", content: "继续输出，不要重复，不要总结，直接接着写" });
+    } else {
+      // If no explicit finish reason or unknown (e.g., connection dropped), assume it was cut off
+      if (!currentChunkText) {
+        isFinished = true;
+      } else {
+        messages.push({ role: "assistant", content: currentChunkText });
+        messages.push({ role: "user", content: "继续输出，不要重复，不要总结，直接接着写" });
       }
     }
   }
@@ -486,12 +588,14 @@ export async function generateImage(prompt: string, modelType: ImageModelType = 
 
 async function generateNanoBananaImage(prompt: string, model: string, apiKey?: string, config: { aspectRatio?: string, imageSize?: string } = {}) {
   if (!apiKey) throw new Error("Nano Banana API Key is not set");
+  const cleanApiKey = apiKey.trim();
+  if (/[^\x20-\x7E]/.test(cleanApiKey)) throw new Error("Nano Banana API Key contains invalid characters");
 
   const response = await fetch("https://grsai.dakka.com.cn/v1/draw/nano-banana", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`
+      "Authorization": `Bearer ${cleanApiKey}`
     },
     body: JSON.stringify({
       model: model,
